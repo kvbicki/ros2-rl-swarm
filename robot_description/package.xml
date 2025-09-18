@@ -3,11 +3,16 @@
 <package format="3">
   <name>robot_description</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="szymon.kubicki342@gmail.com">szymon-kubicki</maintainer>
+  <description>Robot description package</description>
+  <maintainer email="szymon.kubicki342@gmail.com">Szymon-Kubicki</maintainer>
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>ros2launch</depend>
+  <depend>xacro</depend>
+  <depend>robot_state_publisher</depend>
+  <depend>gazebo_ros</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
