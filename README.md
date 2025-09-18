@@ -13,7 +13,7 @@ It combines **ROS2 Jazzy**, **Gazebo Harmonic**, and **PyTorch** to build a simu
 
 ---
 
-## nstallation
+## Installation
 
 ### Requirements
 - Ubuntu 24.04  
