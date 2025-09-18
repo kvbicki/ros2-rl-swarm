@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>Project metapackage</description>
   <maintainer email="szymon.kubicki342@gmail.com">Szymon-Kubicki</maintainer>
-  <license>MIT</license>
+  <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
