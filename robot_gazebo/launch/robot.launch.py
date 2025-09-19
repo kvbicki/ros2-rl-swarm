@@ -7,8 +7,8 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     robot_description_path = PathJoinSubstitution([
         FindPackageShare("robot_description"),
-        "model",
-        "robot.xacro"
+        "description",
+        "robot1.urdf.xacro"
     ])
 
     robot_description = Command([

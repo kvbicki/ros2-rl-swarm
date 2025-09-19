@@ -19,7 +19,7 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-install(DIRECTORY model launch rviz
+install(DIRECTORY model launch rviz description
   DESTINATION share/${PROJECT_NAME}
 )
 
