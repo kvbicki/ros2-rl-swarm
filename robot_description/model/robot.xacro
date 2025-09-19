@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="robot">
+
+  <xacro:property name="prefix" value="robot1_"/>
+
+  <xacro:include filename="$(find robot_description)/model/base/base_link.xacro"/>
+
+  <xacro:include filename="$(find robot_description)/model/wheels/wheels.xacro"/>
+  <xacro:include filename="$(find robot_description)/model/joints/wheels_joints.xacro"/>
+
+  <xacro:include filename="$(find robot_description)/model/sensors/lidar.xacro"/>
+  <xacro:include filename="$(find robot_description)/model/joints/lidar_joint.xacro"/>
+
+</robot>

@@ -1,18 +1,21 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>swarm_meta</name>
+  <name>robot_description</name>
   <version>0.0.0</version>
-  <description>Project metapackage</description>
+  <description>Robot description package</description>
   <maintainer email="szymon.kubicki342@gmail.com">Szymon-Kubicki</maintainer>
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>ros2launch</depend>
+  <depend>xacro</depend>
+  <depend>robot_state_publisher</depend>
+  <depend>gazebo_ros</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
-  <exec_depend>robot_description</exec_depend>
-  <exec_depend>robot_gazebo</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
