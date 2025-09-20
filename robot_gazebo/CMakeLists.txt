@@ -7,6 +7,7 @@ endif()
 
 
 find_package(ament_cmake REQUIRED)
+find_package(ros_gz_sim REQUIRED)
 
 
 if(BUILD_TESTING)

@@ -5,7 +5,6 @@
 
     <xacro:arg name="robot_name" default="robot_3d"/>
     <xacro:arg name="prefix" default=""/>
-    <xacro:arg name="use_gazebo" default="false"/>
 
     <xacro:include filename="$(find robot_description)/model/mech/robot_3d_base.urdf.xacro"/>
     <xacro:include filename="$(find robot_description)/model/mech/mecanum_wheel.urdf.xacro"/>
@@ -14,7 +13,7 @@
     <xacro:include filename="$(find robot_description)/model/control/robot.gazebo"/>
 
     <xacro:robot_3d_base prefix="$(arg prefix)"/>
-
+    <xacro:robot_gazebo prefix="$(arg prefix)"/>
     <xacro:mecanum_wheel
       prefix="$(arg prefix)"
       side="front_left"
@@ -57,7 +56,6 @@
       update_rate="15.0"
       topic_name="imu/data"/>
 
-  <!-- 2.3 add Gazebo frictions -->
   <gazebo reference='front_left_wheel_link'>
     <collision>
       <surface>
@@ -117,9 +115,6 @@
   <gazebo reference="base_link">
     <mu1>0.000002</mu1>
     <mu2>0.000002</mu2>
-    <!-- <material>Gazebo/Red</material> -->
   </gazebo>
-   
 
-    
 </robot>
