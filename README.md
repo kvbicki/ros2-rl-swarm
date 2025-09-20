@@ -25,3 +25,31 @@ It combines **ROS2 Jazzy**, **Gazebo Harmonic**, and **PyTorch** to build a simu
 
 ## Goal
 The goal of this project is to investigate how RL techniques can improve collision avoidance in swarm robotics and demonstrate their effectiveness in simulation.
+
+## Utils
+Key commands for the project:
+
+### Install dependencies
+
+```bash
+rosdep install --from-paths src --ignore-src -r -y
+```
+
+### Build the entire workspace
+
+```bash
+colcon build
+```
+
+### Build a meta package without entire workspace
+```bash
+colcon build --packages-up-to swarm_meta
+```
+### Source the workspace after building
+``` bash
+source install/setup.bash
+```
+### Run the teleop and move the robot
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r __ns:=/ -r cmd_vel:=/cmd_vel
+```
