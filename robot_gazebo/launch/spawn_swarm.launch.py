@@ -28,7 +28,7 @@ def generate_launch_description():
 
     urdf_file_path = PathJoinSubstitution([
         pkg_urdf_path,
-        "model","robots",
+        "model", "robots",
         LaunchConfiguration('model')
     ])
 
@@ -49,14 +49,15 @@ def generate_launch_description():
 
     spawn_nodes = []
     state_publisher_nodes = []
+    bridge_nodes = []
 
     positions = [
-        (0.0, 0.0), 
-        (0.0, 0.5), 
-        (0.0, 1.0), 
-        (0.5, 0.25), 
+        (0.0, 0.0),
+        (0.0, 0.5),
+        (0.0, 1.0),
+        (0.5, 0.25),
         (0.5, 0.75),
-        (1, 0.5)  
+        (1, 0.5)
     ]
 
     for i, (x_pos, y_pos) in enumerate(positions):
@@ -65,6 +66,7 @@ def generate_launch_description():
         spawn_node = Node(
             package="ros_gz_sim",
             executable="create",
+            namespace=name,
             arguments=[
                 "-name", name,
                 "-topic", "robot_description",
@@ -77,7 +79,8 @@ def generate_launch_description():
         state_pub_node = Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
-            name=f'robot_state_publisher_{i+1}',
+            namespace=name,
+            name='robot_state_publisher',
             output='screen',
             parameters=[{
                 'robot_description': Command(['xacro', ' ', urdf_file_path]),
@@ -85,33 +88,44 @@ def generate_launch_description():
             }]
         )
 
+        bridge_node = Node(
+            package="ros_gz_bridge",
+            executable="parameter_bridge",
+            namespace=name,
+            arguments=[
+                f"/{name}/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",
+                f"/{name}/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
+                f"/{name}/joint_states@sensor_msgs/msg/JointState@gz.msgs.Model",
+                f"/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
+                f"/{name}/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan"
+            ],
+            output="screen",
+            parameters=[{'use_sim_time': True}]
+        )
+
         spawn_nodes.append(spawn_node)
         state_publisher_nodes.append(state_pub_node)
+        bridge_nodes.append(bridge_node)
 
-    gz_bridge_node = Node(
+    clock_bridge_node = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
-        arguments=[
-            "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
-            "/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",
-            "/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
-            "/joint_states@sensor_msgs/msg/JointState@gz.msgs.Model",
-            "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
-            "/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan"
-        ],
+        arguments=["/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"],
         output="screen",
         parameters=[{'use_sim_time': True}]
     )
 
     ld = LaunchDescription()
-    ld.add_action(rviz_launch_arg)
+    # ld.add_action(rviz_launch_arg)
+    # ld.add_action(rviz_node)
     ld.add_action(world_arg)
     ld.add_action(model_arg)
     ld.add_action(world_launch)
-    ld.add_action(rviz_node)
-    for sn, spn in zip(spawn_nodes, state_publisher_nodes):
+    ld.add_action(clock_bridge_node)
+
+    for sn, spn, bn in zip(spawn_nodes, state_publisher_nodes, bridge_nodes):
         ld.add_action(sn)
         ld.add_action(spn)
-    ld.add_action(gz_bridge_node)
+        ld.add_action(bn)
 
     return ld

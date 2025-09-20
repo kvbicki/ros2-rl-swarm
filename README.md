@@ -53,3 +53,7 @@ source install/setup.bash
 ```bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r __ns:=/ -r cmd_vel:=/cmd_vel
 ```
+### Run the teleop and move robot in swarm
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r __ns:=/my_robot_3 -r cmd_vel:=/my_robot_3/cmd_vel
+```
