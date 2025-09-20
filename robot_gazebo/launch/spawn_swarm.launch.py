@@ -1,7 +1,6 @@
 import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch_ros.actions import Node
@@ -11,19 +10,14 @@ def generate_launch_description():
     pkg_urdf_path = get_package_share_directory('robot_description')
     pkg_gazebo_path = get_package_share_directory('robot_gazebo')
 
-    rviz_launch_arg = DeclareLaunchArgument(
-        'rviz', default_value='true',
-        description='Open RViz.'
-    )
-
     world_arg = DeclareLaunchArgument(
         'world', default_value='test_world.sdf',
-        description='Name of the Gazebo world file to load'
+        description='Gazebo world file'
     )
 
     model_arg = DeclareLaunchArgument(
         'model', default_value='robot_3d.urdf.xacro',
-        description='Name of the URDF description to load'
+        description='URDF file'
     )
 
     urdf_file_path = PathJoinSubstitution([
@@ -37,14 +31,6 @@ def generate_launch_description():
             os.path.join(pkg_gazebo_path, 'launch', 'world.launch.py')
         ),
         launch_arguments={'world': LaunchConfiguration('world')}.items()
-    )
-
-    rviz_node = Node(
-        package='rviz2',
-        executable='rviz2',
-        arguments=['-d', os.path.join(pkg_urdf_path, 'rviz', 'robot.rviz')],
-        condition=IfCondition(LaunchConfiguration('rviz')),
-        parameters=[{'use_sim_time': True}]
     )
 
     spawn_nodes = []
@@ -66,7 +52,6 @@ def generate_launch_description():
         spawn_node = Node(
             package="ros_gz_sim",
             executable="create",
-            namespace=name,
             arguments=[
                 "-name", name,
                 "-topic", "robot_description",
@@ -79,11 +64,12 @@ def generate_launch_description():
         state_pub_node = Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
-            namespace=name,
-            name='robot_state_publisher',
+            name=f"{name}_state_publisher",
             output='screen',
             parameters=[{
-                'robot_description': Command(['xacro', ' ', urdf_file_path]),
+                'robot_description': Command([
+                    'xacro ', urdf_file_path, ' prefix:=', name, '/'
+                ]),
                 'use_sim_time': True
             }]
         )
@@ -91,7 +77,7 @@ def generate_launch_description():
         bridge_node = Node(
             package="ros_gz_bridge",
             executable="parameter_bridge",
-            namespace=name,
+            name=f"{name}_bridge",
             arguments=[
                 f"/{name}/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",
                 f"/{name}/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
@@ -116,8 +102,6 @@ def generate_launch_description():
     )
 
     ld = LaunchDescription()
-    # ld.add_action(rviz_launch_arg)
-    # ld.add_action(rviz_node)
     ld.add_action(world_arg)
     ld.add_action(model_arg)
     ld.add_action(world_launch)

@@ -14,6 +14,7 @@
 
     <xacro:robot_3d_base prefix="$(arg prefix)"/>
 
+    <xacro:robot_gazebo prefix="$(arg prefix)" />
     <xacro:mecanum_wheel
       prefix="$(arg prefix)"
       side="front_left"
@@ -115,6 +116,5 @@
   <gazebo reference="base_link">
     <mu1>0.000002</mu1>
     <mu2>0.000002</mu2>
-    <!-- <material>Gazebo/Red</material> -->
   </gazebo>
 </robot>
