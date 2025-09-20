@@ -17,12 +17,12 @@ ARGUMENTS = [
  
 def generate_launch_description():
     urdf_package = 'robot_description'
-    urdf_filename = 'robot1.urdf.xacro'
+    urdf_filename = 'robot_3d.urdf.xacro'
     rviz_config_filename = 'robot.rviz'
  
     pkg_share_description = FindPackageShare(urdf_package)
     default_urdf_model_path = PathJoinSubstitution(
-        [pkg_share_description, 'urdf', 'robots', urdf_filename])
+        [pkg_share_description, 'model', 'robots', urdf_filename])
     default_rviz_config_path = PathJoinSubstitution(
         [pkg_share_description, 'rviz', rviz_config_filename])
  

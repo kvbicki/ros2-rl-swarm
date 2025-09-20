@@ -6,12 +6,8 @@
     prefix:=''
     parent:='base_link'
     frame_id:='laser_frame'
-    mesh_file:='file://$(find mec_mobile_description)/meshes/rplidar/rplidar_s2.stl'
     xyz_offset:='0 0 0.0825'
     rpy_offset:='0 0 0'
-    mesh_xyz_offset:='0 0 0'
-    mesh_rpy_offset:='${-M_PI/2} 0 0'
-    mesh_scale:='0.001 0.001 0.001'
     collision_xyz_offset:='0 0 0'
     collision_rpy_offset:='0 0 0'
     inertial_xyz_offset:='0 0 0'
@@ -42,9 +38,9 @@
 
     <link name="${prefix}${frame_id}">
       <visual>
-        <origin xyz="${mesh_xyz_offset}" rpy="${mesh_rpy_offset}"/>
+        <origin xyz="0 0 ${lidar_height/2}" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="${mesh_file}" scale="${mesh_scale}"/>
+          <cylinder radius="${radius}" length="${lidar_height}"/>
         </geometry>
         <material name="${material_name}">
           <color rgba="${material_color}"/>
@@ -53,9 +49,9 @@
 
       <xacro:if value="${enable_collision}">
         <collision>
-          <origin xyz="${collision_xyz_offset}" rpy="${collision_rpy_offset}"/>
+          <origin xyz="0 0 ${lidar_height/2}" rpy="0 0 0"/>
           <geometry>
-            <cylinder radius="${lidar_width/2}" length="${lidar_height}"/>
+            <cylinder radius="${radius}" length="${lidar_height}"/>
           </geometry>
         </collision>
       </xacro:if>

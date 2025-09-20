@@ -7,8 +7,8 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     
-    pkg_urdf_path = FindPackageShare('mec_mobile_description')
-    default_rviz_config_path = PathJoinSubstitution([pkg_urdf_path, 'rviz', 'mec_mobile_description.rviz'])
+    pkg_urdf_path = FindPackageShare('robot_description')
+    default_rviz_config_path = PathJoinSubstitution([pkg_urdf_path, 'rviz', 'robot.rviz'])
 
     gui_arg = DeclareLaunchArgument(name='gui', default_value='true', choices=['true', 'false'],
                                     description='Flag to enable joint_state_publisher_gui')
@@ -22,10 +22,10 @@ def generate_launch_description():
     )
 
     urdf = IncludeLaunchDescription(
-        PathJoinSubstitution([FindPackageShare('urdf_launch'), 'launch', 'display.launch.py']),
+        PathJoinSubstitution([FindPackageShare('robot_description'), 'launch', 'display.launch.py']),
         launch_arguments={
-            'urdf_package': 'mec_mobile_description',
-            'urdf_package_path': PathJoinSubstitution(['urdf', 'robots', LaunchConfiguration('model')]),
+            'urdf_package': 'robot_description',
+            'urdf_package_path': PathJoinSubstitution(['model', 'robots', LaunchConfiguration('model')]),
             'rviz_config': LaunchConfiguration('rvizconfig'),
             'jsp_gui': LaunchConfiguration('gui')}.items()
     )
