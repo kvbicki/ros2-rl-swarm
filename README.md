@@ -57,3 +57,8 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r __ns:=/ -r cm
 ```bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r __ns:=/my_robot_3 -r cmd_vel:=/my_robot_3/cmd_vel
 ```
+
+### Run to see the tf frames
+```bash
+ros2 run tf2_tools view_frames
+```

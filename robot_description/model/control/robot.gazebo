@@ -11,6 +11,7 @@
         <right_joint>${prefix}front_right_wheel_joint</right_joint>
         <right_joint>${prefix}back_right_wheel_joint</right_joint>
         <wheel_separation>0.3</wheel_separation>
+        <wheelbase>0.3</wheelbase>
         <wheel_radius>0.1</wheel_radius>
         <odom_topic>$(arg prefix)odom</odom_topic>
         <frame_id>{prefix}odom</frame_id>

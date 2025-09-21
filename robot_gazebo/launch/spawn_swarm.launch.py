@@ -54,7 +54,7 @@ def generate_launch_description():
             executable="create",
             arguments=[
                 "-name", name,
-                "-topic", "robot_description",
+                "-topic", f"/{name}/robot_description",
                 "-x", str(x_pos), "-y", str(y_pos), "-z", "0.5", "-Y", "0.0"
             ],
             output="screen",
@@ -65,6 +65,7 @@ def generate_launch_description():
             package='robot_state_publisher',
             executable='robot_state_publisher',
             name=f"{name}_state_publisher",
+            namespace=name,
             output='screen',
             parameters=[{
                 'robot_description': Command([
