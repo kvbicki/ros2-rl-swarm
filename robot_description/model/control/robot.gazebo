@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="robot_gazebo" params="prefix">
+  <xacro:macro name="robot_gazebo" params="prefix:=''">
     <gazebo>
       <plugin
         filename="gz-sim-diff-drive-system"
         name="gz::sim::systems::DiffDrive">
-        <topic>$(arg prefix)cmd_vel</topic>
+        <topic>${prefix}cmd_vel</topic>
         <left_joint>${prefix}front_left_wheel_joint</left_joint>
         <left_joint>${prefix}back_left_wheel_joint</left_joint>
         <right_joint>${prefix}front_right_wheel_joint</right_joint>
@@ -13,18 +13,18 @@
         <wheel_separation>0.3</wheel_separation>
         <wheelbase>0.3</wheelbase>
         <wheel_radius>0.1</wheel_radius>
-        <odom_topic>$(arg prefix)odom</odom_topic>
-        <frame_id>{prefix}odom</frame_id>
-        <child_frame_id>base_footprint</child_frame_id>
+        <odom_topic>${prefix}odom</odom_topic>W
+        <frame_id>${prefix}odom</frame_id>
+        <child_frame_id>${prefix}base_footprint</child_frame_id>
         <odom_publish_frequency>30</odom_publish_frequency>
       </plugin>
 
       <plugin name="gz::sim::systems::OdometryPublisher" filename="gz-sim-odometry-publisher-system">
-        <odom_topic>{prefix}odom</odom_topic>
-        <odom_frame>{prefix}odom</odom_frame>
-        <robot_base_frame>base_footprint</robot_base_frame>
+        <odom_topic>${prefix}odom</odom_topic>
+        <odom_frame>${prefix}odom</odom_frame>
+        <robot_base_frame>${prefix}base_footprint</robot_base_frame>
         <publish_tf>true</publish_tf>
-        <tf_topic>{prefix}tf</tf_topic>
+        <tf_topic>${prefix}tf</tf_topic>
         <odom_publish_frequency>30</odom_publish_frequency>
         <xyz_offset>0 0 0</xyz_offset>
         <rpy_offset>0 0 0</rpy_offset>
