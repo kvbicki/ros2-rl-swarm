@@ -47,7 +47,7 @@ def generate_launch_description():
     ]
 
     for i, (x_pos, y_pos) in enumerate(positions):
-        name = f"my_robot_{i+1}"
+        name = f"robot_{i+1}"
 
         spawn_node = Node(
             package="ros_gz_sim",
@@ -84,7 +84,8 @@ def generate_launch_description():
                 f"/{name}/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
                 f"/{name}/joint_states@sensor_msgs/msg/JointState@gz.msgs.Model",
                 f"/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
-                f"/{name}/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan"
+                f"/{name}/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan",
+                f"/{name}/imu/data@sensor_msgs/msg/Imu@gz.msgs.IMU"
             ],
             output="screen",
             parameters=[{'use_sim_time': True}]
