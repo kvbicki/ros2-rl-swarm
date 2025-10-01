@@ -80,12 +80,12 @@ def generate_launch_description():
             executable="parameter_bridge",
             name=f"{name}_bridge",
             arguments=[
-                f"/{name}/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",
-                f"/{name}/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
-                f"/{name}/joint_states@sensor_msgs/msg/JointState@gz.msgs.Model",
-                f"/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
-                f"/{name}/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan",
-                f"/{name}/imu/data@sensor_msgs/msg/Imu@gz.msgs.IMU"
+                f"/{name}/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist",
+                f"/{name}/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry",
+                # f"/{name}/joint_states@sensor_msgs/msg/JointState@gz.msgs.Model",
+                # f"/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
+                f"/{name}/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan",
+                f"/{name}/imu/data@sensor_msgs/msg/Imu[gz.msgs.IMU"
             ],
             output="screen",
             parameters=[{'use_sim_time': True}]
