@@ -5,6 +5,7 @@
 
     <xacro:arg name="robot_name" default="robot_3d"/>
     <xacro:arg name="prefix" default=""/>
+    <xacro:property name="prefix" value="$(arg prefix)" />
 
     <xacro:include filename="$(find robot_description)/model/mech/robot_3d_base.urdf.xacro"/>
     <xacro:include filename="$(find robot_description)/model/mech/mecanum_wheel.urdf.xacro"/>
@@ -13,7 +14,6 @@
     <xacro:include filename="$(find robot_description)/model/control/robot.gazebo"/>
 
     <xacro:robot_3d_base prefix="$(arg prefix)"/>
-<xacro:property name="prefix" value="$(arg prefix)" />
     <xacro:robot_gazebo prefix="${prefix}" />
     <xacro:mecanum_wheel
       prefix="$(arg prefix)"
