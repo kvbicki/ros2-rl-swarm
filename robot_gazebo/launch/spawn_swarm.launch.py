@@ -36,6 +36,7 @@ def generate_launch_description():
     spawn_nodes = []
     state_publisher_nodes = []
     bridge_nodes = []
+    tf_relay_nodes = []
 
     positions = [
         (0.0, 0.0),
@@ -47,14 +48,14 @@ def generate_launch_description():
     ]
 
     for i, (x_pos, y_pos) in enumerate(positions):
-        name = f"my_robot_{i+1}"
+        name = f"robot_{i+1}"
 
         spawn_node = Node(
             package="ros_gz_sim",
             executable="create",
             arguments=[
                 "-name", name,
-                "-topic", "robot_description",
+                "-topic", f"/{name}/robot_description",
                 "-x", str(x_pos), "-y", str(y_pos), "-z", "0.5", "-Y", "0.0"
             ],
             output="screen",
@@ -65,6 +66,7 @@ def generate_launch_description():
             package='robot_state_publisher',
             executable='robot_state_publisher',
             name=f"{name}_state_publisher",
+            namespace=name,
             output='screen',
             parameters=[{
                 'robot_description': Command([
@@ -79,19 +81,32 @@ def generate_launch_description():
             executable="parameter_bridge",
             name=f"{name}_bridge",
             arguments=[
-                f"/{name}/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",
-                f"/{name}/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
-                f"/{name}/joint_states@sensor_msgs/msg/JointState@gz.msgs.Model",
-                f"/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
-                f"/{name}/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan"
+                f"/{name}/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist",
+                f"/{name}/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry",
+                f"/{name}/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model",
+                f"/model/{name}/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V",
+                f"/{name}/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan",
+                f"/{name}/imu/data@sensor_msgs/msg/Imu[gz.msgs.IMU"
             ],
             output="screen",
+            parameters=[{'use_sim_time': True}],
+            remappings=[
+                (f'/model/{name}/tf', f'/{name}/tf'),
+            ]
+        )
+
+        tf_relay = Node(
+            package='topic_tools',
+            executable='relay',
+            name=f'{name}_tf_relay',
+            arguments=[f'{name}/tf', 'tf'],
             parameters=[{'use_sim_time': True}]
         )
 
         spawn_nodes.append(spawn_node)
         state_publisher_nodes.append(state_pub_node)
         bridge_nodes.append(bridge_node)
+        tf_relay_nodes.append(tf_relay)
 
     clock_bridge_node = Node(
         package="ros_gz_bridge",
@@ -107,9 +122,10 @@ def generate_launch_description():
     ld.add_action(world_launch)
     ld.add_action(clock_bridge_node)
 
-    for sn, spn, bn in zip(spawn_nodes, state_publisher_nodes, bridge_nodes):
+    for sn, spn, bn, tfr in zip(spawn_nodes, state_publisher_nodes, bridge_nodes, tf_relay_nodes):
         ld.add_action(sn)
         ld.add_action(spn)
         ld.add_action(bn)
+        ld.add_action(tfr)
 
     return ld

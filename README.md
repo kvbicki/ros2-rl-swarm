@@ -1,3 +1,6 @@
+# Work in progress
+
+
 # Reinforcement Learning for Collision Avoidance in Robot Swarms
 
 This project explores the use of **Reinforcement Learning (RL)** to solve the collision avoidance problem in robot swarms.  
@@ -55,5 +58,17 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r __ns:=/ -r cm
 ```
 ### Run the teleop and move robot in swarm
 ```bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r __ns:=/my_robot_3 -r cmd_vel:=/my_robot_3/cmd_vel
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r __ns:=/robot_1 -r cmd_vel:=/robot_1/cmd_vel
+```
+
+### Run to see the tf frames
+```bash
+ros2 run tf2_tools view_frames
+```
+
+### Clear the gazebo cache
+```bash
+rm -rf ~/.gazebo
+rm -rf ~/.ignition
+rm -rf ~/.gz
 ```

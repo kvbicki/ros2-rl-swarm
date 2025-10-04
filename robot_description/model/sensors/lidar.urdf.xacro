@@ -21,11 +21,11 @@
     gazebo_material_diffuse:='0.1 0.1 0.1 1'
     gazebo_material_specular:='0.1 0.1 0.1 1'
     update_rate:=10
-    ray_count:=720
+    ray_count:=360
     min_angle:='-3.14159'
     max_angle:='3.14159'
     min_range:='0.20'
-    max_range:='30.0'
+    max_range:='5.0'
     range_resolution:='0.013'
     topic_name:='scan'
     always_on:=true
@@ -82,7 +82,7 @@
         <specular>${gazebo_material_specular}</specular>
       </material>
       <sensor name="${prefix}lidar_sensor" type="gpu_lidar">
-        <topic>${topic_name}</topic>
+        <topic>${prefix}${topic_name}</topic>
         <update_rate>${update_rate}</update_rate>
         <always_on>${always_on}</always_on>
         <visualize>${visualize}</visualize>
