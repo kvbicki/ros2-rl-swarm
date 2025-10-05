@@ -49,7 +49,7 @@ class SwarmManagerNode(Node):
         self.get_logger().info('Swarm Manager Node has been started.')
 
     def timer_callback(self):
-        for robot, pub in self.publishers.items():
+        for robot, pub in self.robot_publishers.items():
             cmd = Twist()
             cmd.linear.x = 0.1
             cmd.angular.z = 0.0
