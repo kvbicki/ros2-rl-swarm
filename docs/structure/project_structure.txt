@@ -1,0 +1,49 @@
+ros2_ws/
+├─ src/
+│ ├─ ros2-rl-swarm/
+│ │ ├─ docs/
+│ │ ├─ robot_description/
+│ │ │ ├─ launch/
+│ │ │ │ ├─ check_urdf.launch.py
+│ │ │ │ ├─ display.launch.py
+│ │ │ │ └─ robot_state_publisher.launch.py
+│ │ │ ├─ model/
+│ │ │ │ └─ control/
+│ │ │ │ │ └─  robot.gazebo
+│ │ │ │ ├─ mech/
+│ │ │ │ │ ├─ mecanum_wheel.urdf.xacro
+│ │ │ │ │ └─ robot_sd_base.urdf.xacro
+│ │ │ │ ├─ robots/
+│ │ │ │ │ └─ robot_sd.urdf.xacro
+│ │ │ │ ├─ sensors/
+│ │ │ │ │ ├─ imu.urdf.xacro
+│ │ │ │ │ └─ lidar.urdf.xacro
+│ │ │ ├─ materials.xacro
+│ │ │ └─ rviz/
+│ │ │ │ └─robot.rviz
+│ │ ├─ robot_gazebo/
+│ │ │ ├─ launch/
+│ │ │ │ ├─ spawn_robot.launch.py
+│ │ │ │ ├─ spawn_swarm.launch.py
+│ │ │ │ └─ world.launch.py
+│ │ │ ├─ worlds/
+│ │ │ │ └─ test_world.sdf
+│ │ │ ├─ CMakeLists.txt
+│ │ │ └─ package.xml
+│ │ ├─ swarm_manager/
+│ │ │ ├─ docker/
+│ │ │ │ ├─ Dockerfile
+│ │ │ │ └─ requirments.txt
+│ │ │ ├─ launch/
+│ │ │ │ └─ swarm_manager.launch.py
+│ │ │ ├─ models/
+│ │ │ ├─ src/
+│ │ │ │ ├─ rl_agent.py
+│ │ │ │ ├─ swarm_env.py
+│ │ │ │ └─ swarm_manager_node.py
+│ │ │ ├─ CMakeLists.txt
+│ │ │ └─ package.xml
+│ │ ├─ swarm_meta/
+│ │ │ ├─ CMakeLists.txt
+│ │ │ ├─ package.xml
+│ └─ README.md
