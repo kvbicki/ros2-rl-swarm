@@ -35,9 +35,8 @@ Key commands for the project:
 ### Build RL Docker environment
 
 ```bash
-cd ~/ros2_ws/src/ros2-rl-swarm/swarm_manager
-# Build Docker image
-docker build -t rl_swarm:latest -f docker/Dockerfile .
+cd ~/ros2_ws/
+docker build -f src/ros2-rl-swarm/swarm_manager/docker/Dockerfile -t ros2-jazzy-rl:latest .
 ```
 
 ### Run RL container with GPU access
@@ -94,4 +93,17 @@ ros2 run tf2_tools view_frames
 
 ```bash
 rm -rf ~/.gazebo ~/.ignition ~/.gz
+```
+
+* Clear Docker cache:
+
+```bash
+docker system prune -a --volumes -f
+systemctl --user stop docker-desktop
+rm ~/.docker/desktop/vms/0/data/Docker.raw
+```
+* Docker dependencies:
+```bash
+pip install numpy gymnasium stable-baselines3 tensorboard matplotlib catkin_pkg pyyaml
+apt-get update && apt-get install -y ros-jazzy-topic-tools
 ```
