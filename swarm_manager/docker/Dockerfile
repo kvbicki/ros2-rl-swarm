@@ -41,12 +41,11 @@ WORKDIR /workspace
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-
 RUN pip install --upgrade pip setuptools wheel
 
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 
-RUN pip install numpy gymnasium stable-baselines3 tensorboard matplotlib
+RUN pip install numpy gymnasium stable-baselines3 tensorboard matplotlib catkin_pkg pyyaml
 
 RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 
