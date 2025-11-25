@@ -35,15 +35,27 @@ Key commands for the project:
 ### Build RL Docker environment
 
 ```bash
-cd ~/ros2_ws/src/ros2-rl-swarm/swarm_manager
-# Build Docker image
-docker build -t rl_swarm:latest -f docker/Dockerfile .
+cd ~/ros2_ws/
+docker build -f src/ros2-rl-swarm/swarm_manager/docker/Dockerfile -t ros2-jazzy-rl:latest .
 ```
 
 ### Run RL container with GPU access
 
 ```bash
-docker run --gpus all -it --rm rl_swarm:latest
+xhost +local:root  #for gazebo
+
+docker run --gpus all -it --rm \
+    --network host \
+    -e DISPLAY=$DISPLAY \
+    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -v ~/ros2_ws:/ros2_ws \
+    --name ros2_swarm_container \
+    ros2-jazzy-rl:latest
+```
+
+```
+sudo apt update
+sudo apt install -y ros-jazzy-topic-tools
 ```
 
 ### Verify GPU in container
@@ -94,4 +106,16 @@ ros2 run tf2_tools view_frames
 
 ```bash
 rm -rf ~/.gazebo ~/.ignition ~/.gz
+```
+
+* Clear Docker cache:
+
+```bash
+docker system prune -a --volumes -f
+systemctl --user stop docker-desktop
+rm ~/.docker/desktop/vms/0/data/Docker.raw
+```
+* Docker terminal:
+```bash
+docker exec -it ros2_swarm_container /bin/bash
 ```
