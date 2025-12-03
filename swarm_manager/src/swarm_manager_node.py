@@ -10,6 +10,8 @@ import numpy as np
 import torch
 import os
 from datetime import datetime
+import subprocess
+import time
 
 class SwarmManagerNode(Node):
     def __init__(self):
@@ -70,7 +72,7 @@ class SwarmManagerNode(Node):
         self.step_count = 0
         self.episode_count = 0
         self.episode_reward = 0.0
-        self.max_episode_steps = 1000
+        self.max_episode_steps = 100
         self.total_steps = 0
         
         # Statystyki
@@ -173,15 +175,66 @@ class SwarmManagerNode(Node):
                 self.reset_episode()
 
     def reset_episode(self):
-        """Resetuj epizod (soft reset bez restartowania Gazebo)"""
-        self.get_logger().info('Resetting episode...')
+
+
+    
+        self.get_logger().info('Resetting episode - teleporting robots...')
         
         # Zatrzymaj wszystkie roboty
         stop_cmd = Twist()
         for r in self.robot_names:
             self.robot_publishers[r].publish(stop_cmd)
         
-        # Reset środowiska (tylko wewnętrzny stan)
+        time.sleep(0.3)
+        
+        # Pozycje startowe - DOKŁADNIE te same co w spawn_swarm.launch.py
+        positions = [
+            (0.0, 0.0),
+            (0.0, 0.5),
+            (0.0, 1.0),
+            (0.5, 0.25),
+            (0.5, 0.75),
+            (1.0, 0.5)
+        ]
+        
+        # Teleportuj każdego robota
+        for i, (x_pos, y_pos) in enumerate(positions):
+            robot_name = f"robot_{i+1}"
+            
+            # Komenda Gazebo do ustawienia pozycji
+            gz_cmd = [
+                'gz', 'service',
+                '-s', '/world/empty/set_pose',
+                '--reqtype', 'gz.msgs.Pose',
+                '--reptype', 'gz.msgs.Boolean',
+                '--timeout', '1000',
+                '--req',
+                f'name: "{robot_name}" '
+                f'position: {{x: {x_pos}, y: {y_pos}, z: 0.5}} '
+                f'orientation: {{w: 1.0, x: 0.0, y: 0.0, z: 0.0}}'
+            ]
+            
+            try:
+                result = subprocess.run(
+                    gz_cmd, 
+                    capture_output=True, 
+                    text=True,
+                    timeout=2
+                )
+                if result.returncode == 0:
+                    self.get_logger().info(f'✓ Teleported {robot_name} to ({x_pos}, {y_pos})')
+                else:
+                    self.get_logger().warn(
+                        f'⚠ Failed to teleport {robot_name}: {result.stderr}'
+                    )
+            except subprocess.TimeoutExpired:
+                self.get_logger().warn(f'⚠ Timeout teleporting {robot_name}')
+            except Exception as e:
+                self.get_logger().warn(f'⚠ Error teleporting {robot_name}: {e}')
+        
+        time.sleep(0.5)  # Poczekaj aż Gazebo przetworzy zmiany
+        
+        # Reset środowiska (wewnętrzny stan)
         self.env.reset()
         
         # Reset liczników
@@ -189,9 +242,7 @@ class SwarmManagerNode(Node):
         self.episode_count += 1
         self.episode_reward = 0.0
         
-        # Krótka pauza aby roboty się zatrzymały
-        import time
-        time.sleep(0.5)
+        self.get_logger().info('✓ Episode reset complete!')
 
     def save_model(self, best=False):
         """Zapisz model"""
