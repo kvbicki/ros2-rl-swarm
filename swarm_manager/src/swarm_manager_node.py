@@ -22,10 +22,9 @@ class SwarmManagerNode(Node):
         self.training_mode = self.declare_parameter('training', True).value
         
         # ZMIANA: Ścieżka modelu - zapisuje w swarm_manager/models
-        default_path = os.path.join(
-            os.path.dirname(__file__),
-            '../models'
-        )
+        default_path = '/ros2_ws/src/ros2-rl-swarm/swarm_manager/models'
+
+
         self.model_path = self.declare_parameter('model_path', default_path).value
         os.makedirs(self.model_path, exist_ok=True)
         
@@ -75,7 +74,7 @@ class SwarmManagerNode(Node):
         self.step_count = 0
         self.episode_count = 0
         self.episode_reward = 0.0
-        self.max_episode_steps = 100
+        self.max_episode_steps = 1000
         self.total_steps = 0
         
         # Statystyki
@@ -86,7 +85,7 @@ class SwarmManagerNode(Node):
 
     def control_callback(self):
         """Główna pętla sterowania"""
-        # Sprawdź czy mamy dane od wszystkich robotów
+        # Sprawdź czy mamy  dane od wszystkich robotów
         if not all(self.robot_data[r]["odom"] is not None for r in self.robot_names):
             return
 
