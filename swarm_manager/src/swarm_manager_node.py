@@ -21,8 +21,10 @@ class SwarmManagerNode(Node):
         self.robot_names = ['robot_1', 'robot_2', 'robot_3', 'robot_4', 'robot_5', 'robot_6']
         self.training_mode = self.declare_parameter('training', True).value
         
-        # Poprawiona ścieżka modelu - zapisuje w home directory
-        default_path = os.path.join(os.path.expanduser('~'), 'swarm_models')
+        # ZMIANA: Ścieżka modelu - zapisuje w swarm_manager/models
+        default_path = '/ros2_ws/src/ros2-rl-swarm/swarm_manager/models'
+
+
         self.model_path = self.declare_parameter('model_path', default_path).value
         os.makedirs(self.model_path, exist_ok=True)
         
@@ -72,7 +74,7 @@ class SwarmManagerNode(Node):
         self.step_count = 0
         self.episode_count = 0
         self.episode_reward = 0.0
-        self.max_episode_steps = 100
+        self.max_episode_steps = 1000
         self.total_steps = 0
         
         # Statystyki
@@ -83,7 +85,7 @@ class SwarmManagerNode(Node):
 
     def control_callback(self):
         """Główna pętla sterowania"""
-        # Sprawdź czy mamy dane od wszystkich robotów
+        # Sprawdź czy mamy  dane od wszystkich robotów
         if not all(self.robot_data[r]["odom"] is not None for r in self.robot_names):
             return
 
@@ -92,6 +94,8 @@ class SwarmManagerNode(Node):
         
         # Pobierz obserwacje
         obs = self.env._get_observations().flatten()
+        obs = np.nan_to_num(obs, nan=0.0, posinf=1.0, neginf=-1.0)
+        obs = np.clip(obs, -10, 10)  # Dodatkowe ograniczenie
         
         # Sprawdź czy obserwacje są poprawne
         if np.any(np.isnan(obs)) or np.any(np.isinf(obs)):
@@ -100,6 +104,10 @@ class SwarmManagerNode(Node):
 
         # Agent wybiera akcję
         action, logprob = self.agent.act(obs)
+        action = np.asarray(action).flatten()
+        if len(action) != len(self.robot_names) * 2:
+            self.get_logger().warn(f'Action size mismatch: {len(action)}')
+            action = np.zeros(len(self.robot_names) * 2)
         action = action.reshape(len(self.robot_names), 2)
 
         # Publikuj komendy sterowania
@@ -281,9 +289,14 @@ class SwarmManagerNode(Node):
             # Zapisz też statystyki do CSV
             stats_path = os.path.join(self.model_path, 'training_stats.csv')
             with open(stats_path, 'a') as f:
-                if self.episode_count == 50:  # Pierwszy zapis - dodaj header
-                    f.write('episode,total_steps,reward,avg_reward_100\n')
-                avg_reward = np.mean(self.episode_rewards[-100:]) if self.episode_rewards else 0
+                if self.episode_count == 0:  # Pierwszy epizod
+                    if not os.path.exists(stats_path):
+                        with open(stats_path, 'w') as fh:
+                            fh.write('episode,total_steps,reward,avg_reward_100,collisions,success\n')
+                if len(self.episode_rewards) == 0:
+                    avg_reward = 0.0
+                else:
+                    avg_reward = np.mean(self.episode_rewards[-100:])
                 f.write(f'{self.episode_count},{self.total_steps},{self.episode_reward:.2f},{avg_reward:.2f}\n')
                 
         except Exception as e:

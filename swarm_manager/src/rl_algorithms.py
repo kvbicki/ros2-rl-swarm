@@ -117,6 +117,7 @@ class PPOAgent:
             action: Wybrana akcja
             logprob: Log prawdopodobieństwa akcji
         """
+        state = np.nan_to_num(state, nan=0.0, posinf=1.0, neginf=-1.0)
         state_t = torch.FloatTensor(state).to(self.device)
         if state_t.dim() == 1:
             state_t = state_t.unsqueeze(0)
@@ -129,6 +130,7 @@ class PPOAgent:
                 std = std.unsqueeze(0).expand_as(mean)
             
             # Stwórz rozkład normalny
+            std = std.clamp(min=0.01) 
             dist = torch.distributions.Normal(mean, std)
             
             # Próbkuj akcję
@@ -149,7 +151,12 @@ class PPOAgent:
         Trenuj agenta na zebranych danych z pamięci.
         """
         if len(self.memory) == 0:
-            return
+            return {
+            'loss': 0.0,
+            'policy_loss': 0.0,
+            'value_loss': 0.0,
+            'entropy': 0.0
+        }
         
         # Rozpakuj dane z pamięci
         states, actions, old_logprobs, rewards, dones = zip(*self.memory)

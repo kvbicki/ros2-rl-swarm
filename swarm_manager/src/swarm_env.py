@@ -37,7 +37,15 @@ class SwarmEnv:
         self.success_count = 0
         
         self.reset()
-    
+        self._validate_observations()
+
+    def _validate_observations(self):
+        """Sprawdź wymiary obserwacji."""
+        obs = self._get_observations()
+        assert obs.shape == (self.num_robots, self.observation_space_dim), \
+            f"Expected {(self.num_robots, self.observation_space_dim)}, got {obs.shape}"
+        return True
+
     def reset(self) -> np.ndarray:
         """Reset środowiska do stanu początkowego."""
         # Inicjalizacja pozycji robotów w formacji koła
