@@ -11,7 +11,6 @@ find_package(sensor_msgs REQUIRED)
 install(
   PROGRAMS
   src/swarm_manager_node.py
-  src/rl_agent.py
   src/rl_algorithms.py
   src/swarm_env.py
   DESTINATION lib/${PROJECT_NAME}

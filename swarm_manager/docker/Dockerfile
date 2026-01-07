@@ -35,8 +35,8 @@ RUN apt-get update && apt-get install -y \
 
 RUN rosdep init && rosdep update
 
-COPY src/ /workspace/src/
-WORKDIR /workspace
+WORKDIR /ros2_ws
+COPY src/ /ros2_ws/src/
 
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -48,9 +48,11 @@ RUN pip install torch torchvision torchaudio --index-url https://download.pytorc
 RUN pip install numpy gymnasium stable-baselines3 tensorboard matplotlib catkin_pkg pyyaml
 
 RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+RUN echo "source /ros2_ws/install/setup.bash" >> ~/.bashrc
 
 RUN echo '#!/bin/bash\n\
 source /opt/ros/jazzy/setup.bash\n\
+if [ -f /ros2_ws/install/setup.bash ]; then source /ros2_ws/install/setup.bash; fi\n\
 exec "$@"' > /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
