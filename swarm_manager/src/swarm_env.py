@@ -18,21 +18,18 @@ class SwarmEnv:
         self.observation_space_dim = observation_space_dim
         self.action_space_dim = action_space_dim
         
-        # Parametry środowiska
-        self.max_linear_vel = 1.0  # m/s
-        self.max_angular_vel = 2.0  # rad/s
-        self.collision_threshold = 0.4  # m - zmniejszone dla bezpieczeństwa
-        self.target_position = np.array([5.0, 5.0])  # Cel dla formacji
-        self.ideal_neighbor_distance = 1.5  # Idealna odległość między robotami
+        self.max_linear_vel = 1.0
+        self.max_angular_vel = 2.0
+        self.collision_threshold = 0.4
+        self.target_position = np.array([5.0, 5.0]) 
+        self.ideal_neighbor_distance = 1.5  
         
-        # Stan robotów
         self.robot_positions = {}
         self.robot_velocities = {}
         self.robot_orientations = {}
-        self.robot_lidar_data = {}  # Dodane dla rzeczywistych danych z lidaru
+        self.robot_lidar_data = {}
         self.previous_distances = {}
         
-        # Statystyki
         self.collision_count = 0
         self.success_count = 0
         
@@ -48,7 +45,6 @@ class SwarmEnv:
 
     def reset(self) -> np.ndarray:
         """Reset środowiska do stanu początkowego."""
-        # Inicjalizacja pozycji robotów w formacji koła
         for i, robot_name in enumerate(self.robot_names):
             angle = 2 * math.pi * i / self.num_robots
             radius = 2.0
@@ -82,31 +78,25 @@ class SwarmEnv:
         for i, robot_name in enumerate(self.robot_names):
             obs = []
             
-            # 1. Względna pozycja do celu (2 elementy)
             rel_target = self.target_position - self.robot_positions[robot_name]
-            rel_target_norm = rel_target / 10.0  # Normalizacja
+            rel_target_norm = rel_target / 10.0
             obs.extend(rel_target_norm)
             
-            # 2. Prędkość własna (2 elementy)
             vel_norm = self.robot_velocities[robot_name] / self.max_linear_vel
             obs.extend(vel_norm)
             
-            # 3. Orientacja jako sin i cos (2 elementy)
             obs.append(math.sin(self.robot_orientations[robot_name]))
             obs.append(math.cos(self.robot_orientations[robot_name]))
             
-            # 4. Dane z lidaru (5 elementów)
             if self.robot_lidar_data[robot_name] is not None:
                 lidar_ranges = self._process_real_lidar(robot_name, num_samples=5)
             else:
                 lidar_ranges = self._simulate_lidar(robot_name, num_rays=5)
             obs.extend(lidar_ranges)
             
-            # 5. Pozycje najbliższych sąsiadów (4 elementy = 2 sąsiadów × 2)
             neighbor_info = self._get_neighbor_info(robot_name, num_neighbors=2)
             obs.extend(neighbor_info)
             
-            # Upewnij się że mamy dokładnie observation_space_dim elementów
             assert len(obs) == self.observation_space_dim, \
                 f"Observation size mismatch: {len(obs)} != {self.observation_space_dim}"
             
@@ -122,17 +112,14 @@ class SwarmEnv:
         lidar_msg = self.robot_lidar_data[robot_name]
         ranges = np.array(lidar_msg.ranges)
         
-        # Zamień inf na max_range
         max_range = lidar_msg.range_max
         ranges[np.isinf(ranges)] = max_range
         ranges[np.isnan(ranges)] = max_range
         
-        # Równomierne próbkowanie
         total_points = len(ranges)
         indices = np.linspace(0, total_points - 1, num_samples, dtype=int)
         sampled_ranges = ranges[indices]
         
-        # Normalizacja do [0, 1]
         normalized_ranges = sampled_ranges / max_range
         
         return normalized_ranges.tolist()
@@ -145,11 +132,9 @@ class SwarmEnv:
         lidar_data = []
         
         for i in range(num_rays):
-            # Rozłóż promienie równomiernie wokół robota
             angle_offset = (i - num_rays // 2) * (2 * math.pi / num_rays)
             angle = self.robot_orientations[robot_name] + angle_offset
             
-            # Sprawdzanie kolizji z innymi robotami
             min_distance = max_range
             ray_dir = np.array([math.cos(angle), math.sin(angle)])
             
@@ -158,14 +143,13 @@ class SwarmEnv:
                     rel_pos = self.robot_positions[other_name] - self.robot_positions[robot_name]
                     distance = np.linalg.norm(rel_pos)
                     
-                    # Sprawdź czy robot jest w kierunku promienia (±45 stopni)
                     if distance > 0:
                         rel_pos_norm = rel_pos / distance
                         dot_product = np.dot(rel_pos_norm, ray_dir)
-                        if dot_product > 0.7:  # cos(45°) ≈ 0.7
+                        if dot_product > 0.7: 
                             min_distance = min(min_distance, distance)
             
-            lidar_data.append(min_distance / max_range)  # Normalizacja
+            lidar_data.append(min_distance / max_range)
         
         return lidar_data
     
@@ -177,24 +161,20 @@ class SwarmEnv:
         neighbor_info = []
         distances = []
         
-        # Zbierz wszystkie odległości
+
         for other_name in self.robot_names:
             if other_name != robot_name:
                 rel_pos = self.robot_positions[other_name] - self.robot_positions[robot_name]
                 distance = np.linalg.norm(rel_pos)
                 distances.append((distance, rel_pos))
         
-        # Sortowanie po odległości
         distances.sort(key=lambda x: x[0])
         
-        # Dodaj num_neighbors najbliższych
         for i in range(num_neighbors):
             if i < len(distances):
-                # Normalizacja względnej pozycji
                 rel_pos_norm = distances[i][1] / 10.0
                 neighbor_info.extend(rel_pos_norm)
             else:
-                # Wypełnij zerami jeśli brak sąsiadów
                 neighbor_info.extend([0.0, 0.0])
         
         return neighbor_info
@@ -214,7 +194,6 @@ class SwarmEnv:
         for i, robot_name in enumerate(self.robot_names):
             reward = 0.0
             
-            # 1. Nagroda za progress do celu
             current_distance = np.linalg.norm(
                 self.robot_positions[robot_name] - self.target_position
             )
@@ -222,7 +201,6 @@ class SwarmEnv:
             reward += distance_reward
             self.previous_distances[robot_name] = current_distance
             
-            # 2. Nagroda za utrzymywanie idealnej formacji
             formation_reward = 0.0
             neighbor_count = 0
             for other_name in self.robot_names:
@@ -230,7 +208,6 @@ class SwarmEnv:
                     dist = np.linalg.norm(
                         self.robot_positions[robot_name] - self.robot_positions[other_name]
                     )
-                    # Nagroda jest największa gdy dist ≈ ideal_neighbor_distance
                     distance_error = abs(dist - self.ideal_neighbor_distance)
                     formation_reward -= distance_error * 0.2
                     neighbor_count += 1
@@ -239,7 +216,6 @@ class SwarmEnv:
                 formation_reward /= neighbor_count
             reward += formation_reward
             
-            # 3. Kara za kolizje
             collision_penalty = 0.0
             for other_name in self.robot_names:
                 if other_name != robot_name:
@@ -251,16 +227,13 @@ class SwarmEnv:
                         self.collision_count += 1
             reward += collision_penalty
             
-            # 4. Bonus za osiągnięcie celu
             if current_distance < 0.5:
                 reward += 50.0
             
-            # 5. Mała kara za zbyt wysoką prędkość (zachęca do płynnego ruchu)
             speed = np.linalg.norm(self.robot_velocities[robot_name])
             if speed > 0.8 * self.max_linear_vel:
                 reward -= 0.5
             
-            # 6. Mała nagroda za ruch (zapobiega staniu w miejscu)
             if speed > 0.1:
                 reward += 0.1
             
@@ -310,7 +283,6 @@ class SwarmEnv:
             if robot_name in robot_data:
                 data = robot_data[robot_name]
                 
-                # Aktualizacja pozycji i orientacji z odometrii
                 if data["odom"] is not None:
                     odom = data["odom"]
                     self.robot_positions[robot_name] = np.array([
@@ -318,7 +290,6 @@ class SwarmEnv:
                         odom.pose.pose.position.y
                     ])
                     
-                    # Konwersja kwaterniona na kąt Eulera (yaw)
                     q = odom.pose.pose.orientation
                     yaw = math.atan2(
                         2.0 * (q.w * q.z + q.x * q.y),
@@ -326,13 +297,11 @@ class SwarmEnv:
                     )
                     self.robot_orientations[robot_name] = yaw
                     
-                    # Aktualizacja prędkości
                     self.robot_velocities[robot_name] = np.array([
                         odom.twist.twist.linear.x,
                         odom.twist.twist.linear.y
                     ])
                 
-                # Aktualizacja danych z lidaru
                 if data["scan"] is not None:
                     self.robot_lidar_data[robot_name] = data["scan"]
     

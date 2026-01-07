@@ -15,6 +15,11 @@ def generate_launch_description():
         description='Gazebo world file'
     )
 
+    headless_arg = DeclareLaunchArgument(
+        'headless', default_value='True',
+        description='Run Gazebo in headless mode (no GUI)'
+    )
+
     model_arg = DeclareLaunchArgument(
         'model', default_value='robot_3d.urdf.xacro',
         description='URDF file'
@@ -30,7 +35,10 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_gazebo_path, 'launch', 'world.launch.py')
         ),
-        launch_arguments={'world': LaunchConfiguration('world')}.items()
+        launch_arguments={
+            'world': LaunchConfiguration('world'),
+            'headless': LaunchConfiguration('headless')
+        }.items()
     )
 
     spawn_nodes = []
@@ -118,6 +126,7 @@ def generate_launch_description():
 
     ld = LaunchDescription()
     ld.add_action(world_arg)
+    ld.add_action(headless_arg)
     ld.add_action(model_arg)
     ld.add_action(world_launch)
     ld.add_action(clock_bridge_node)

@@ -17,13 +17,10 @@ class SwarmManagerNode(Node):
     def __init__(self):
         super().__init__('swarm_manager_node')
 
-        # Parametry
         self.robot_names = ['robot_1', 'robot_2', 'robot_3', 'robot_4', 'robot_5', 'robot_6']
         self.training_mode = self.declare_parameter('training', True).value
         
-        # ZMIANA: Ścieżka modelu - zapisuje w swarm_manager/models
         default_path = '/ros2_ws/src/ros2-rl-swarm/swarm_manager/models'
-
 
         self.model_path = self.declare_parameter('model_path', default_path).value
         os.makedirs(self.model_path, exist_ok=True)
@@ -31,13 +28,11 @@ class SwarmManagerNode(Node):
         self.get_logger().info(f'Model path: {self.model_path}')
         self.get_logger().info(f'Training mode: {self.training_mode}')
 
-        # Stan robotów
         self.robot_data = {
             r: {"odom": None, "scan": None, "imu": None} 
             for r in self.robot_names
         }
 
-        # Subskrypcje do topików
         for r in self.robot_names:
             self.create_subscription(
                 Odometry, f'/{r}/odom', 
@@ -52,32 +47,22 @@ class SwarmManagerNode(Node):
                 lambda msg, r=r: self.imu_callback(msg, r), 10
             )
 
-        # Publishery do sterowania
         self.robot_publishers = {
             r: self.create_publisher(Twist, f'/{r}/cmd_vel', 10) 
             for r in self.robot_names
         }
 
-        # Środowisko i agent
         self.env = SwarmEnv(self.robot_names)
         obs_dim = 15 * len(self.robot_names)
         action_dim = 2 * len(self.robot_names)
         self.agent = PPOAgent(obs_dim, action_dim, lr=3e-4, gamma=0.99)
-
-        # Załaduj model jeśli istnieje
         self.load_model()
-
-        # Timer sterowania (10 Hz)
         self.control_timer = self.create_timer(0.1, self.control_callback)
-
-        # Liczniki treningowe
         self.step_count = 0
         self.episode_count = 0
         self.episode_reward = 0.0
-        self.max_episode_steps = 1000
+        self.max_episode_steps = 400
         self.total_steps = 0
-        
-        # Statystyki
         self.episode_rewards = []
         self.best_reward = float('-inf')
 
@@ -85,24 +70,19 @@ class SwarmManagerNode(Node):
 
     def control_callback(self):
         """Główna pętla sterowania"""
-        # Sprawdź czy mamy  dane od wszystkich robotów
         if not all(self.robot_data[r]["odom"] is not None for r in self.robot_names):
             return
 
-        # Aktualizuj środowisko danymi z ROS
         self.env.update_from_ros_data(self.robot_data)
         
-        # Pobierz obserwacje
         obs = self.env._get_observations().flatten()
         obs = np.nan_to_num(obs, nan=0.0, posinf=1.0, neginf=-1.0)
-        obs = np.clip(obs, -10, 10)  # Dodatkowe ograniczenie
+        obs = np.clip(obs, -10, 10)
         
-        # Sprawdź czy obserwacje są poprawne
         if np.any(np.isnan(obs)) or np.any(np.isinf(obs)):
             self.get_logger().warn('Invalid observations detected, skipping step')
             return
 
-        # Agent wybiera akcję
         action, logprob = self.agent.act(obs)
         action = np.asarray(action).flatten()
         if len(action) != len(self.robot_names) * 2:
@@ -110,23 +90,18 @@ class SwarmManagerNode(Node):
             action = np.zeros(len(self.robot_names) * 2)
         action = action.reshape(len(self.robot_names), 2)
 
-        # Publikuj komendy sterowania
         for i, r in enumerate(self.robot_names):
             cmd = Twist()
             cmd.linear.x = float(np.clip(action[i, 0], -1.0, 1.0))
             cmd.angular.z = float(np.clip(action[i, 1], -2.0, 2.0))
             self.robot_publishers[r].publish(cmd)
 
-        # Trening
         if self.training_mode:
-            # Oblicz nagrody
             rewards = self.env._calculate_rewards()
             total_reward = np.sum(rewards)
             
-            # Sprawdź warunek zakończenia
             done = self.env._check_done()
             
-            # Zapisz transition
             self.agent.store_transition(
                 obs, 
                 action.flatten(), 
@@ -139,18 +114,15 @@ class SwarmManagerNode(Node):
             self.step_count += 1
             self.total_steps += 1
 
-            # Warunek zakończenia epizodu
             episode_done = done or self.step_count >= self.max_episode_steps
             
             if episode_done:
-                # Trenuj agenta na zebranych danych
                 if len(self.agent.memory) > 0:
                     self.get_logger().info(
                         f'Training on {len(self.agent.memory)} transitions...'
                     )
                     self.agent.train()
                 
-                # Loguj statystyki
                 self.episode_rewards.append(self.episode_reward)
                 avg_reward = np.mean(self.episode_rewards[-100:]) if self.episode_rewards else 0
                 
@@ -165,37 +137,27 @@ class SwarmManagerNode(Node):
                     f'{"="*60}'
                 )
                 
-                # Zapisz model jeśli jest najlepszy
                 if self.episode_reward > self.best_reward:
                     self.best_reward = self.episode_reward
                     self.save_model(best=True)
                     self.get_logger().info(f'New best model saved! Reward: {self.best_reward:.2f}')
                 
-                # Zapisuj checkpoint co 10 epizodów
                 if self.episode_count % 10 == 0:
                     self.save_model()
                 
-                # Zapisuj szczegółowe checkpointy co 50 epizodów
                 if self.episode_count % 50 == 0:
                     self.save_checkpoint()
                 
-                # Reset epizodu
                 self.reset_episode()
 
     def reset_episode(self):
-
-
-    
         self.get_logger().info('Resetting episode - teleporting robots...')
         
-        # Zatrzymaj wszystkie roboty
         stop_cmd = Twist()
         for r in self.robot_names:
             self.robot_publishers[r].publish(stop_cmd)
         
         time.sleep(0.3)
-        
-        # Pozycje startowe - DOKŁADNIE te same co w spawn_swarm.launch.py
         positions = [
             (0.0, 0.0),
             (0.0, 0.5),
@@ -205,11 +167,9 @@ class SwarmManagerNode(Node):
             (1.0, 0.5)
         ]
         
-        # Teleportuj każdego robota
         for i, (x_pos, y_pos) in enumerate(positions):
             robot_name = f"robot_{i+1}"
             
-            # Komenda Gazebo do ustawienia pozycji
             gz_cmd = [
                 'gz', 'service',
                 '-s', '/world/empty/set_pose',
@@ -240,12 +200,9 @@ class SwarmManagerNode(Node):
             except Exception as e:
                 self.get_logger().warn(f'⚠ Error teleporting {robot_name}: {e}')
         
-        time.sleep(0.5)  # Poczekaj aż Gazebo przetworzy zmiany
+        time.sleep(0.5) 
         
-        # Reset środowiska (wewnętrzny stan)
         self.env.reset()
-        
-        # Reset liczników
         self.step_count = 0
         self.episode_count += 1
         self.episode_reward = 0.0
@@ -266,7 +223,7 @@ class SwarmManagerNode(Node):
             self.get_logger().error(f'Failed to save model: {e}')
 
     def save_checkpoint(self):
-        """Zapisz pełny checkpoint z metadanymi"""
+        """Zapisz pełny checkpoint z metadanymi oraz zaktualizuj CSV ze statystykami"""
         try:
             checkpoint_path = os.path.join(
                 self.model_path, 
@@ -286,18 +243,26 @@ class SwarmManagerNode(Node):
             torch.save(checkpoint, checkpoint_path)
             self.get_logger().info(f'Checkpoint saved to: {checkpoint_path}')
             
-            # Zapisz też statystyki do CSV
             stats_path = os.path.join(self.model_path, 'training_stats.csv')
+            
+            file_exists = os.path.isfile(stats_path) and os.path.getsize(stats_path) > 0
+            
+
+            env_stats = self.env.get_statistics()
+            collision_count = env_stats.get('collision_count', 0)
+            
+
+            if len(self.episode_rewards) == 0:
+                avg_reward = 0.0
+            else:
+                avg_reward = np.mean(self.episode_rewards[-100:])
+
             with open(stats_path, 'a') as f:
-                if self.episode_count == 0:  # Pierwszy epizod
-                    if not os.path.exists(stats_path):
-                        with open(stats_path, 'w') as fh:
-                            fh.write('episode,total_steps,reward,avg_reward_100,collisions,success\n')
-                if len(self.episode_rewards) == 0:
-                    avg_reward = 0.0
-                else:
-                    avg_reward = np.mean(self.episode_rewards[-100:])
-                f.write(f'{self.episode_count},{self.total_steps},{self.episode_reward:.2f},{avg_reward:.2f}\n')
+                if not file_exists:
+
+                    f.write('episode,total_steps,reward,avg_reward_100,collision_count\n')
+                
+                f.write(f'{self.episode_count},{self.total_steps},{self.episode_reward:.2f},{avg_reward:.2f},{collision_count}\n')
                 
         except Exception as e:
             self.get_logger().error(f'Failed to save checkpoint: {e}')
