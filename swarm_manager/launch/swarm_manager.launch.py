@@ -6,10 +6,8 @@ from launch_ros.actions import Node
 import os
 
 def generate_launch_description():
-    # Domyślna ścieżka do modeli w home directory
     default_model_path = os.path.join(os.path.expanduser('~'), 'swarm_models')
-    
-    # Argumenty launch
+
     training_arg = DeclareLaunchArgument(
         'training',
         default_value='true',
@@ -22,7 +20,6 @@ def generate_launch_description():
         description='Path to save/load models'
     )
     
-    # Node swarm managera
     swarm_manager_node = Node(
         package='swarm_manager',
         executable='swarm_manager_node.py',
@@ -32,7 +29,6 @@ def generate_launch_description():
             'training': LaunchConfiguration('training'),
             'model_path': LaunchConfiguration('model_path')
         }],
-        # Dodaj prefix do logów dla lepszej czytelności
         prefix=['stdbuf -o L'],
     )
     
