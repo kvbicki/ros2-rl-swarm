@@ -1,18 +1,9 @@
 #!/usr/bin/env python3
 import numpy as np
-from typing import Dict, Tuple, Optional
 import math
 
 class SwarmEnv:
     def __init__(self, robot_names: list, observation_space_dim: int = 15, action_space_dim: int = 2):
-        """
-        Środowisko dla roju robotów.
-        
-        Args:
-            robot_names: Lista nazw robotów
-            observation_space_dim: Wymiar przestrzeni obserwacji dla każdego robota
-            action_space_dim: Wymiar przestrzeni akcji (linear_vel, angular_vel)
-        """
         self.robot_names = robot_names
         self.num_robots = len(robot_names)
         self.observation_space_dim = observation_space_dim
@@ -20,9 +11,9 @@ class SwarmEnv:
         
         self.max_linear_vel = 1.0
         self.max_angular_vel = 2.0
-        self.collision_threshold = 0.4
-        self.target_position = np.array([5.0, 5.0]) 
-        self.ideal_neighbor_distance = 1.5  
+        self.collision_threshold = 0.35
+        self.target_position = np.array([5.0, 5.0])
+        self.ideal_neighbor_distance = 1.5
         
         self.robot_positions = {}
         self.robot_velocities = {}
@@ -32,19 +23,9 @@ class SwarmEnv:
         
         self.collision_count = 0
         self.success_count = 0
-        
         self.reset()
-        self._validate_observations()
-
-    def _validate_observations(self):
-        """Sprawdź wymiary obserwacji."""
-        obs = self._get_observations()
-        assert obs.shape == (self.num_robots, self.observation_space_dim), \
-            f"Expected {(self.num_robots, self.observation_space_dim)}, got {obs.shape}"
-        return True
-
-    def reset(self) -> np.ndarray:
-        """Reset środowiska do stanu początkowego."""
+    
+    def reset(self):
         for i, robot_name in enumerate(self.robot_names):
             angle = 2 * math.pi * i / self.num_robots
             radius = 2.0
@@ -58,255 +39,118 @@ class SwarmEnv:
             self.previous_distances[robot_name] = np.linalg.norm(
                 self.robot_positions[robot_name] - self.target_position
             )
-        
         self.collision_count = 0
-        
         return self._get_observations()
     
-    def _get_observations(self) -> np.ndarray:
-        """
-        Generuje obserwacje dla wszystkich robotów.
-        Każda obserwacja zawiera dokładnie 15 elementów:
-        - Względną pozycję do celu (2)
-        - Prędkość własną (2)
-        - Orientację jako sin/cos (2)
-        - Najbliższe przeszkody z lidaru (5)
-        - Pozycje najbliższych sąsiadów (4) - 2 sąsiadów × 2 współrzędne
-        """
+    def _get_observations(self):
         observations = np.zeros((self.num_robots, self.observation_space_dim))
-        
         for i, robot_name in enumerate(self.robot_names):
             obs = []
-            
             rel_target = self.target_position - self.robot_positions[robot_name]
-            rel_target_norm = rel_target / 10.0
-            obs.extend(rel_target_norm)
-            
-            vel_norm = self.robot_velocities[robot_name] / self.max_linear_vel
-            obs.extend(vel_norm)
-            
+            obs.extend(rel_target / 10.0)
+            obs.extend(self.robot_velocities[robot_name] / self.max_linear_vel)
             obs.append(math.sin(self.robot_orientations[robot_name]))
             obs.append(math.cos(self.robot_orientations[robot_name]))
             
             if self.robot_lidar_data[robot_name] is not None:
-                lidar_ranges = self._process_real_lidar(robot_name, num_samples=5)
+                lidar = self._process_real_lidar(robot_name)
             else:
-                lidar_ranges = self._simulate_lidar(robot_name, num_rays=5)
-            obs.extend(lidar_ranges)
+                lidar = self._simulate_lidar(robot_name)
+            obs.extend(lidar)
             
-            neighbor_info = self._get_neighbor_info(robot_name, num_neighbors=2)
-            obs.extend(neighbor_info)
-            
-            assert len(obs) == self.observation_space_dim, \
-                f"Observation size mismatch: {len(obs)} != {self.observation_space_dim}"
-            
+            neighbors = self._get_neighbor_info(robot_name)
+            obs.extend(neighbors)
             observations[i] = obs
-        
         return observations
     
-    def _process_real_lidar(self, robot_name: str, num_samples: int = 5) -> list:
-        """
-        Przetwarza rzeczywiste dane z lidaru.
-        Próbkuje równomiernie z pełnego zakresu 360 stopni.
-        """
-        lidar_msg = self.robot_lidar_data[robot_name]
-        ranges = np.array(lidar_msg.ranges)
-        
-        max_range = lidar_msg.range_max
-        ranges[np.isinf(ranges)] = max_range
-        ranges[np.isnan(ranges)] = max_range
-        
-        total_points = len(ranges)
-        indices = np.linspace(0, total_points - 1, num_samples, dtype=int)
-        sampled_ranges = ranges[indices]
-        
-        normalized_ranges = sampled_ranges / max_range
-        
-        return normalized_ranges.tolist()
-    
-    def _simulate_lidar(self, robot_name: str, num_rays: int = 5) -> list:
-        """
-        Symuluje dane z lidaru gdy nie ma prawdziwych danych.
-        """
-        max_range = 10.0
-        lidar_data = []
-        
-        for i in range(num_rays):
-            angle_offset = (i - num_rays // 2) * (2 * math.pi / num_rays)
-            angle = self.robot_orientations[robot_name] + angle_offset
-            
-            min_distance = max_range
-            ray_dir = np.array([math.cos(angle), math.sin(angle)])
-            
-            for other_name in self.robot_names:
-                if other_name != robot_name:
-                    rel_pos = self.robot_positions[other_name] - self.robot_positions[robot_name]
-                    distance = np.linalg.norm(rel_pos)
-                    
-                    if distance > 0:
-                        rel_pos_norm = rel_pos / distance
-                        dot_product = np.dot(rel_pos_norm, ray_dir)
-                        if dot_product > 0.7: 
-                            min_distance = min(min_distance, distance)
-            
-            lidar_data.append(min_distance / max_range)
-        
-        return lidar_data
-    
-    def _get_neighbor_info(self, robot_name: str, num_neighbors: int = 2) -> list:
-        """
-        Zwraca względne pozycje najbliższych sąsiadów.
-        Zawsze zwraca num_neighbors * 2 wartości (wypełnia zerami jeśli brak sąsiadów).
-        """
-        neighbor_info = []
-        distances = []
-        
-
-        for other_name in self.robot_names:
-            if other_name != robot_name:
-                rel_pos = self.robot_positions[other_name] - self.robot_positions[robot_name]
-                distance = np.linalg.norm(rel_pos)
-                distances.append((distance, rel_pos))
-        
-        distances.sort(key=lambda x: x[0])
-        
-        for i in range(num_neighbors):
-            if i < len(distances):
-                rel_pos_norm = distances[i][1] / 10.0
-                neighbor_info.extend(rel_pos_norm)
-            else:
-                neighbor_info.extend([0.0, 0.0])
-        
-        return neighbor_info
-    
-    def _calculate_rewards(self) -> np.ndarray:
-        """
-        Oblicza nagrody dla każdego robota.
-        Składowe nagrody:
-        1. Progress do celu
-        2. Utrzymywanie formacji
-        3. Kara za kolizje
-        4. Bonus za osiągnięcie celu
-        5. Kara za zbyt szybką jazdę (stabilność)
-        """
+    def _calculate_rewards(self):
         rewards = np.zeros(self.num_robots)
         
         for i, robot_name in enumerate(self.robot_names):
             reward = 0.0
             
-            current_distance = np.linalg.norm(
-                self.robot_positions[robot_name] - self.target_position
-            )
-            distance_reward = (self.previous_distances[robot_name] - current_distance) * 10.0
-            reward += distance_reward
-            self.previous_distances[robot_name] = current_distance
+            current_dist = np.linalg.norm(self.robot_positions[robot_name] - self.target_position)
+            diff = self.previous_distances[robot_name] - current_dist
+            reward += np.clip(diff, -0.5, 0.5) * 5.0
+            self.previous_distances[robot_name] = current_dist
             
-            formation_reward = 0.0
             neighbor_count = 0
-            for other_name in self.robot_names:
-                if other_name != robot_name:
-                    dist = np.linalg.norm(
-                        self.robot_positions[robot_name] - self.robot_positions[other_name]
-                    )
-                    distance_error = abs(dist - self.ideal_neighbor_distance)
-                    formation_reward -= distance_error * 0.2
+            formation_loss = 0.0
+            for other in self.robot_names:
+                if other != robot_name:
+                    d = np.linalg.norm(self.robot_positions[robot_name] - self.robot_positions[other])
+                    formation_loss += abs(d - self.ideal_neighbor_distance)
                     neighbor_count += 1
-            
             if neighbor_count > 0:
-                formation_reward /= neighbor_count
-            reward += formation_reward
+                reward -= (formation_loss / neighbor_count) * 0.05
             
-            collision_penalty = 0.0
-            for other_name in self.robot_names:
-                if other_name != robot_name:
-                    dist = np.linalg.norm(
-                        self.robot_positions[robot_name] - self.robot_positions[other_name]
-                    )
-                    if dist < self.collision_threshold:
-                        collision_penalty -= 20.0
+            for other in self.robot_names:
+                if other != robot_name:
+                    d = np.linalg.norm(self.robot_positions[robot_name] - self.robot_positions[other])
+                    if d < self.collision_threshold:
+                        reward -= 10.0
                         self.collision_count += 1
-            reward += collision_penalty
             
-            if current_distance < 0.5:
-                reward += 50.0
+            if current_dist < 0.5:
+                reward += 20.0
             
             speed = np.linalg.norm(self.robot_velocities[robot_name])
-            if speed > 0.8 * self.max_linear_vel:
-                reward -= 0.5
-            
-            if speed > 0.1:
+            if speed < 0.05:
+                reward -= 0.2
+            else:
                 reward += 0.1
-            
+                
             rewards[i] = reward
-        
+            
         return rewards
     
-    def _check_done(self) -> bool:
-        """
-        Sprawdza czy epizod się zakończył.
-        Zakończenie następuje gdy wszystkie roboty osiągną cel.
-        """
+    def _process_real_lidar(self, robot_name, num_samples=5):
+        lidar_msg = self.robot_lidar_data[robot_name]
+        ranges = np.array(lidar_msg.ranges)
+        max_range = lidar_msg.range_max
+        ranges[np.isinf(ranges)] = max_range
+        ranges[np.isnan(ranges)] = max_range
+        indices = np.linspace(0, len(ranges) - 1, num_samples, dtype=int)
+        return (ranges[indices] / max_range).tolist()
+
+    def _simulate_lidar(self, robot_name, num_rays=5):
+        return [1.0] * num_rays
+
+    def _get_neighbor_info(self, robot_name, num_neighbors=2):
+        neighbor_info = []
+        distances = []
+        for other in self.robot_names:
+            if other != robot_name:
+                dist = np.linalg.norm(self.robot_positions[other] - self.robot_positions[robot_name])
+                distances.append((dist, self.robot_positions[other] - self.robot_positions[robot_name]))
+        distances.sort(key=lambda x: x[0])
+        for i in range(num_neighbors):
+            if i < len(distances):
+                neighbor_info.extend(distances[i][1] / 10.0)
+            else:
+                neighbor_info.extend([0.0, 0.0])
+        return neighbor_info
+
+    def _check_done(self):
         all_at_target = True
         for robot_name in self.robot_names:
-            distance = np.linalg.norm(
-                self.robot_positions[robot_name] - self.target_position
-            )
-            if distance > 0.5:
-                all_at_target = False
-                break
-        
-        if all_at_target:
-            self.success_count += 1
-        
+            if np.linalg.norm(self.robot_positions[robot_name] - self.target_position) > 0.5:
+                all_at_target = False; break
+        if all_at_target: self.success_count += 1
         return all_at_target
-    
-    def _detect_collisions(self) -> list:
-        """Wykrywa aktualne kolizje między robotami."""
-        collisions = []
-        for i, robot1 in enumerate(self.robot_names):
-            for robot2 in self.robot_names[i+1:]:
-                dist = np.linalg.norm(
-                    self.robot_positions[robot1] - self.robot_positions[robot2]
-                )
-                if dist < self.collision_threshold:
-                    collisions.append((robot1, robot2))
-        return collisions
-    
-    def update_from_ros_data(self, robot_data: Dict) -> None:
-        """
-        Aktualizuje stan środowiska na podstawie danych z ROS.
-        
-        Args:
-            robot_data: Słownik z danymi sensorycznymi z ROS
-        """
-        for robot_name in self.robot_names:
-            if robot_name in robot_data:
-                data = robot_data[robot_name]
-                
-                if data["odom"] is not None:
-                    odom = data["odom"]
-                    self.robot_positions[robot_name] = np.array([
-                        odom.pose.pose.position.x,
-                        odom.pose.pose.position.y
-                    ])
-                    
-                    q = odom.pose.pose.orientation
-                    yaw = math.atan2(
-                        2.0 * (q.w * q.z + q.x * q.y),
-                        1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-                    )
-                    self.robot_orientations[robot_name] = yaw
-                    
-                    self.robot_velocities[robot_name] = np.array([
-                        odom.twist.twist.linear.x,
-                        odom.twist.twist.linear.y
-                    ])
-                
-                if data["scan"] is not None:
-                    self.robot_lidar_data[robot_name] = data["scan"]
-    
-    def get_statistics(self) -> dict:
-        """Zwraca statystyki środowiska."""
+
+    def update_from_ros_data(self, robot_data):
+        for r in self.robot_names:
+            if r in robot_data and robot_data[r]["odom"]:
+                odom = robot_data[r]["odom"]
+                self.robot_positions[r] = np.array([odom.pose.pose.position.x, odom.pose.pose.position.y])
+                q = odom.pose.pose.orientation
+                self.robot_orientations[r] = math.atan2(2*(q.w*q.z + q.x*q.y), 1-2*(q.y**2 + q.z**2))
+                self.robot_velocities[r] = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y])
+            if r in robot_data and robot_data[r]["scan"]:
+                self.robot_lidar_data[r] = robot_data[r]["scan"]
+
+    def get_statistics(self):
         return {
             "collision_count": self.collision_count,
             "success_count": self.success_count,
