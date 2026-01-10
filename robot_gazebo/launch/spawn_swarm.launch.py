@@ -16,7 +16,7 @@ def generate_launch_description():
     )
 
     headless_arg = DeclareLaunchArgument(
-        'headless', default_value='True',
+        'headless', default_value='False',
         description='Run Gazebo in headless mode (no GUI)'
     )
 

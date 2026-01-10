@@ -29,7 +29,7 @@ class SwarmManagerNode(Node):
         stats_path = os.path.join(self.model_path, 'training_stats.csv')
         if not os.path.exists(stats_path):
             with open(stats_path, 'w') as f:
-                f.write('episode,steps,reward,avg_reward,collisions\n')
+                f.write('episode,steps,reward,avg_reward_100,collision_count\n')
 
         self.robot_data = {
             r: {"odom": None, "scan": None, "imu": None} 

@@ -26,15 +26,23 @@ class SwarmEnv:
         self.reset()
     
     def reset(self):
+        start_positions = [
+            (0.0, 0.0),
+            (0.0, 0.5),
+            (0.0, 1.0),
+            (0.5, 0.25),
+            (0.5, 0.75),
+            (1.0, 0.5)
+        ]
+
         for i, robot_name in enumerate(self.robot_names):
-            angle = 2 * math.pi * i / self.num_robots
-            radius = 2.0
-            self.robot_positions[robot_name] = np.array([
-                radius * math.cos(angle),
-                radius * math.sin(angle)
-            ])
+            if i < len(start_positions):
+                self.robot_positions[robot_name] = np.array(start_positions[i])
+            else:
+                self.robot_positions[robot_name] = np.array([0.0, 0.0])
+
             self.robot_velocities[robot_name] = np.zeros(2)
-            self.robot_orientations[robot_name] = angle
+            self.robot_orientations[robot_name] = 0.0
             self.robot_lidar_data[robot_name] = None
             self.previous_distances[robot_name] = np.linalg.norm(
                 self.robot_positions[robot_name] - self.target_position
