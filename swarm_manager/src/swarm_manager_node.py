@@ -7,25 +7,29 @@ from sensor_msgs.msg import LaserScan, Imu
 from swarm_env import SwarmEnv
 from rl_algorithms import PPOAgent
 import numpy as np
-import torch
 import os
-from datetime import datetime
 import subprocess
 import time
+import torch
+import sys
 
 class SwarmManagerNode(Node):
     def __init__(self):
         super().__init__('swarm_manager_node')
+        sys.stdout.reconfigure(line_buffering=True)
+        self.get_logger().info(">>> SWARM MANAGER INITIALIZATION <<<")
 
         self.robot_names = ['robot_1', 'robot_2', 'robot_3', 'robot_4', 'robot_5', 'robot_6']
         self.training_mode = self.declare_parameter('training', True).value
         
-        default_path = '/ros2_ws/src/ros2-rl-swarm/swarm_manager/models'
+        default_path = os.path.join(os.path.expanduser('~'), 'swarm_models')
         self.model_path = self.declare_parameter('model_path', default_path).value
         os.makedirs(self.model_path, exist_ok=True)
         
-        self.get_logger().info(f'Model path: {self.model_path}')
-        self.get_logger().info(f'Training mode: {self.training_mode}')
+        stats_path = os.path.join(self.model_path, 'training_stats.csv')
+        if not os.path.exists(stats_path):
+            with open(stats_path, 'w') as f:
+                f.write('episode,steps,reward,avg_reward_100,collision_count\n')
 
         self.robot_data = {
             r: {"odom": None, "scan": None, "imu": None} 
@@ -33,18 +37,9 @@ class SwarmManagerNode(Node):
         }
 
         for r in self.robot_names:
-            self.create_subscription(
-                Odometry, f'/{r}/odom', 
-                lambda msg, r=r: self.odom_callback(msg, r), 10
-            )
-            self.create_subscription(
-                LaserScan, f'/{r}/scan', 
-                lambda msg, r=r: self.scan_callback(msg, r), 10
-            )
-            self.create_subscription(
-                Imu, f'/{r}/imu/data', 
-                lambda msg, r=r: self.imu_callback(msg, r), 10
-            )
+            self.create_subscription(Odometry, f'/{r}/odom', lambda msg, r=r: self.odom_callback(msg, r), 10)
+            self.create_subscription(LaserScan, f'/{r}/scan', lambda msg, r=r: self.scan_callback(msg, r), 10)
+            self.create_subscription(Imu, f'/{r}/imu/data', lambda msg, r=r: self.imu_callback(msg, r), 10)
 
         self.robot_publishers = {
             r: self.create_publisher(Twist, f'/{r}/cmd_vel', 10) 
@@ -52,12 +47,20 @@ class SwarmManagerNode(Node):
         }
 
         self.env = SwarmEnv(self.robot_names)
-        obs_dim = 15 * len(self.robot_names)
-        action_dim = 2 * len(self.robot_names)
-        self.agent = PPOAgent(obs_dim, action_dim, lr=3e-4, gamma=0.99)
+        
+        single_robot_obs_dim = 15
+        single_robot_action_dim = 2
+        
+        self.agent = PPOAgent(
+            single_robot_obs_dim, 
+            single_robot_action_dim, 
+            lr=3e-4, 
+            gamma=0.99,
+            entropy_coef=0.05
+        )
 
         self.load_model()
-
+        
         self.control_timer = self.create_timer(0.1, self.control_callback)
 
         self.step_count = 0
@@ -65,237 +68,171 @@ class SwarmManagerNode(Node):
         self.episode_reward = 0.0
         self.max_episode_steps = 400
         self.total_steps = 0
+        self.wait_counter = 0
         
         self.episode_rewards = []
         self.best_reward = float('-inf')
-
-        self.get_logger().info('Swarm Manager Node started successfully!')
+        
+        self.get_logger().info(">>> MANAGER READY - WAITING FOR GAZEBO DATA <<<")
 
     def control_callback(self):
-        if not all(self.robot_data[r]["odom"] is not None for r in self.robot_names):
+        missing_data = []
+        for r in self.robot_names:
+            if self.robot_data[r]["odom"] is None: missing_data.append(f"{r}:odom")
+
+        if missing_data:
+            self.wait_counter += 1
+            if self.wait_counter % 20 == 0:
+                self.get_logger().warn(f"WAITING FOR SENSOR DATA: {', '.join(missing_data)}")
             return
+
+        self.wait_counter = 0
 
         self.env.update_from_ros_data(self.robot_data)
+        obs_all = self.env._get_observations()
         
-        obs = self.env._get_observations().flatten()
-        obs = np.nan_to_num(obs, nan=0.0, posinf=1.0, neginf=-1.0)
-        obs = np.clip(obs, -10, 10)
-        
-        if np.any(np.isnan(obs)) or np.any(np.isinf(obs)):
-            self.get_logger().warn('Invalid observations detected, skipping step')
+        if np.any(np.isnan(obs_all)) or np.any(np.isinf(obs_all)):
+            self.get_logger().error("DETECTED NaN/Inf IN OBSERVATIONS! SKIPPING STEP.")
             return
 
-        action, logprob = self.agent.act(obs)
-        action = np.asarray(action).flatten()
-        if len(action) != len(self.robot_names) * 2:
-            self.get_logger().warn(f'Action size mismatch: {len(action)}')
-            action = np.zeros(len(self.robot_names) * 2)
-        action = action.reshape(len(self.robot_names), 2)
-
+        actions, logprobs = self.agent.act(obs_all)
+        
         for i, r in enumerate(self.robot_names):
             cmd = Twist()
-            cmd.linear.x = float(np.clip(action[i, 0], -1.0, 1.0))
-            cmd.angular.z = float(np.clip(action[i, 1], -2.0, 2.0))
+            cmd.linear.x = float(np.clip(actions[i, 0], -1.0, 1.0))
+            cmd.angular.z = float(np.clip(actions[i, 1], -2.0, 2.0))
             self.robot_publishers[r].publish(cmd)
 
         if self.training_mode:
             rewards = self.env._calculate_rewards()
-            total_reward = np.sum(rewards)
-            
+            total_step_reward = np.sum(rewards)
             done = self.env._check_done()
             
-            self.agent.store_transition(
-                obs, 
-                action.flatten(), 
-                logprob, 
-                total_reward, 
-                done
-            )
+            for i in range(len(self.robot_names)):
+                self.agent.store_transition(
+                    obs_all[i], actions[i], logprobs[i], rewards[i], done
+                )
             
-            self.episode_reward += total_reward
+            self.episode_reward += total_step_reward
             self.step_count += 1
             self.total_steps += 1
+
+            if self.step_count % 50 == 0:
+                self.get_logger().info(f"Step {self.step_count}/{self.max_episode_steps}, Reward: {self.episode_reward:.1f}")
 
             episode_done = done or self.step_count >= self.max_episode_steps
             
             if episode_done:
-                if len(self.agent.memory) > 0:
-                    self.get_logger().info(
-                        f'Training on {len(self.agent.memory)} transitions...'
-                    )
-                    self.agent.train()
-                
-                self.episode_rewards.append(self.episode_reward)
-                avg_reward = np.mean(self.episode_rewards[-100:]) if self.episode_rewards else 0
-                
-                self.get_logger().info(
-                    f'\n{"="*60}\n'
-                    f'Episode {self.episode_count} finished:\n'
-                    f'  Steps: {self.step_count}\n'
-                    f'  Total reward: {self.episode_reward:.2f}\n'
-                    f'  Avg reward (last 100): {avg_reward:.2f}\n'
-                    f'  Total steps: {self.total_steps}\n'
-                    f'  Success: {"Yes" if done else "No"}\n'
-                    f'{"="*60}'
-                )
-                
-                self.save_stats_to_csv()
-                
-                if self.episode_reward > self.best_reward:
-                    self.best_reward = self.episode_reward
-                    self.save_model(best=True)
-                    self.get_logger().info(f'New best model saved! Reward: {self.best_reward:.2f}')
-                
-                if self.episode_count % 10 == 0:
-                    self.save_model()
-                
-                if self.episode_count % 50 == 0:
-                    self.save_checkpoint()
-                
+                self.handle_episode_end()
                 self.reset_episode()
 
-    def reset_episode(self):
-        self.get_logger().info('Resetting episode - teleporting robots...')
+    def handle_episode_end(self):
+        if len(self.agent.memory) > 0:
+            self.get_logger().info("TRAINING NETWORK...")
+            self.agent.train()
         
+        self.episode_rewards.append(self.episode_reward)
+        avg = np.mean(self.episode_rewards[-100:]) if self.episode_rewards else 0
+        
+        self.get_logger().info(
+            f"\n{'#'*40}\n"
+            f"EPISODE {self.episode_count} ENDED\n"
+            f"REWARD: {self.episode_reward:.2f}\n"
+            f"AVG (100): {avg:.2f}\n"
+            f"COLLISIONS: {self.env.collision_count}\n"
+            f"{'#'*40}"
+        )
+
+        try:
+            stats_path = os.path.join(self.model_path, 'training_stats.csv')
+            with open(stats_path, 'a') as f:
+                f.write(f'{self.episode_count},{self.step_count},{self.episode_reward:.2f},{avg:.2f},{self.env.collision_count}\n')
+        except Exception as e:
+            self.get_logger().error(f"CSV SAVE ERROR: {e}")
+
+        if self.episode_reward > self.best_reward:
+            self.best_reward = self.episode_reward
+            self.save_model(best=True)
+        
+        if self.episode_count % 10 == 0:
+            self.save_model()
+            self.save_checkpoint()
+
+    def reset_episode(self):
+        self.get_logger().info("RESETTING POSITIONS...")
         stop_cmd = Twist()
         for r in self.robot_names:
             self.robot_publishers[r].publish(stop_cmd)
         
-        time.sleep(0.3)
+        time.sleep(0.2)
         
         positions = [
-            (0.0, 0.0),
-            (0.0, 0.5),
-            (0.0, 1.0),
-            (0.5, 0.25),
-            (0.5, 0.75),
-            (1.0, 0.5)
+            (0.0, 0.0), (0.0, 0.5), (0.0, 1.0),
+            (0.5, 0.25), (0.5, 0.75), (1.0, 0.5)
         ]
         
         for i, (x_pos, y_pos) in enumerate(positions):
             robot_name = f"robot_{i+1}"
-            
             gz_cmd = [
-                'gz', 'service',
-                '-s', '/world/empty/set_pose',
-                '--reqtype', 'gz.msgs.Pose',
-                '--reptype', 'gz.msgs.Boolean',
-                '--timeout', '1000',
-                '--req',
-                f'name: "{robot_name}" '
-                f'position: {{x: {x_pos}, y: {y_pos}, z: 0.5}} '
-                f'orientation: {{w: 1.0, x: 0.0, y: 0.0, z: 0.0}}'
+                'gz', 'service', '-s', '/world/empty/set_pose',
+                '--reqtype', 'gz.msgs.Pose', '--reptype', 'gz.msgs.Boolean',
+                '--timeout', '1000', '--req',
+                f'name: "{robot_name}" position: {{x: {x_pos}, y: {y_pos}, z: 0.5}} orientation: {{w: 1.0}}'
             ]
-            
             try:
-                subprocess.run(gz_cmd, capture_output=True, text=True, timeout=2)
-            except Exception:
+                subprocess.run(gz_cmd, capture_output=True, timeout=1)
+            except:
                 pass
         
         time.sleep(0.5)
-        
         self.env.reset()
-        
         self.step_count = 0
         self.episode_count += 1
         self.episode_reward = 0.0
-        
-        self.get_logger().info('✓ Episode reset complete!')
 
     def save_model(self, best=False):
         try:
-            if best:
-                model_path = os.path.join(self.model_path, 'ppo_best.pth')
-            else:
-                model_path = os.path.join(self.model_path, f'ppo_ep{self.episode_count}.pth')
-            
-            torch.save(self.agent.policy.state_dict(), model_path)
-            self.get_logger().info(f'Model saved to: {model_path}')
+            name = 'ppo_best.pth' if best else f'ppo_ep{self.episode_count}.pth'
+            path = os.path.join(self.model_path, name)
+            torch.save(self.agent.policy.state_dict(), path)
         except Exception as e:
-            self.get_logger().error(f'Failed to save model: {e}')
-
-    def save_stats_to_csv(self):
-        stats_path = os.path.join(self.model_path, 'training_stats.csv')
-        
-        file_exists = os.path.isfile(stats_path) and os.path.getsize(stats_path) > 0
-        
-        env_stats = self.env.get_statistics()
-        collision_count = env_stats.get('collision_count', 0)
-        
-        if len(self.episode_rewards) == 0:
-            avg_reward = 0.0
-        else:
-            avg_reward = np.mean(self.episode_rewards[-100:])
-
-        try:
-            with open(stats_path, 'a') as f:
-                if not file_exists:
-                    f.write('episode,total_steps,reward,avg_reward_100,collision_count\n')
-                
-                f.write(f'{self.episode_count},{self.total_steps},{self.episode_reward:.2f},{avg_reward:.2f},{collision_count}\n')
-        except Exception as e:
-            self.get_logger().error(f'Failed to write to CSV: {e}')
+            self.get_logger().error(f"SAVE ERROR: {e}")
 
     def save_checkpoint(self):
         try:
-            checkpoint_path = os.path.join(
-                self.model_path, 
-                f'checkpoint_ep{self.episode_count}.pth'
-            )
-            
+            path = os.path.join(self.model_path, f'checkpoint_ep{self.episode_count}.pth')
             checkpoint = {
                 'episode': self.episode_count,
-                'total_steps': self.total_steps,
-                'model_state_dict': self.agent.policy.state_dict(),
-                'optimizer_state_dict': self.agent.optimizer.state_dict(),
-                'episode_rewards': self.episode_rewards,
-                'best_reward': self.best_reward,
-                'timestamp': datetime.now().isoformat()
+                'model_state': self.agent.policy.state_dict(),
+                'optimizer_state': self.agent.optimizer.state_dict(),
+                'rewards': self.episode_rewards
             }
-            
-            torch.save(checkpoint, checkpoint_path)
-            self.get_logger().info(f'Checkpoint saved to: {checkpoint_path}')
-                
+            torch.save(checkpoint, path)
         except Exception as e:
-            self.get_logger().error(f'Failed to save checkpoint: {e}')
+            self.get_logger().error(f"CHECKPOINT ERROR: {e}")
 
     def load_model(self):
-        best_model_path = os.path.join(self.model_path, 'ppo_best.pth')
-        
-        if os.path.exists(best_model_path):
-            try:
-                self.agent.policy.load_state_dict(torch.load(best_model_path))
-                self.get_logger().info(f'Loaded best model from: {best_model_path}')
-            except Exception as e:
-                self.get_logger().warn(f'Failed to load model: {e}')
-        else:
-            self.get_logger().info('No existing model found, starting from scratch')
+        path = os.path.join(self.model_path, 'ppo_best.pth')
+        if os.path.exists(path):
+            self.agent.policy.load_state_dict(torch.load(path))
+            self.get_logger().info("MODEL LOADED")
 
-    def odom_callback(self, msg, robot):
-        self.robot_data[robot]["odom"] = msg
-
-    def scan_callback(self, msg, robot):
-        self.robot_data[robot]["scan"] = msg
-
-    def imu_callback(self, msg, robot):
-        self.robot_data[robot]["imu"] = msg
-
+    def odom_callback(self, msg, robot): self.robot_data[robot]["odom"] = msg
+    def scan_callback(self, msg, robot): self.robot_data[robot]["scan"] = msg
+    def imu_callback(self, msg, robot): self.robot_data[robot]["imu"] = msg
 
 def main(args=None):
     rclpy.init(args=args)
     node = SwarmManagerNode()
-    
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info('Shutting down...')
         if node.training_mode:
             node.save_model()
             node.save_checkpoint()
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()
