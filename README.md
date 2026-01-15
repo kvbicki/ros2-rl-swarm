@@ -119,3 +119,12 @@ rm ~/.docker/desktop/vms/0/data/Docker.raw
 ```bash
 docker exec -it ros2_swarm_container /bin/bash
 ```
+## Demo
+
+### Untrained
+
+![Demo](docs/media/vids/untrained_mappo%20-%20Trim.gif)
+
+### Trained
+
+![Demo](docs/media/vids/trained_mappo%20-%20Trim.gif)
